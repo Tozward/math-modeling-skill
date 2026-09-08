@@ -346,5 +346,152 @@ class ReviewLayerSeparationTests(unittest.TestCase):
         )
 
 
+class PaperFullDimensionReviewTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.paper_role = (
+            ROOT
+            / "references"
+            / "roles"
+            / "论文手"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        cls.paper_review = (
+            ROOT
+            / "references"
+            / "roles"
+            / "论文手"
+            / "references"
+            / "评委全维度终审.md"
+        ).read_text(encoding="utf-8")
+
+    def test_w2_extension_is_routed_only_to_w2(self) -> None:
+        self.assertIn(
+            "评委全维度终审.md",
+            self.paper_role,
+        )
+        self.assertIn(
+            "执行 `W2` 时",
+            self.paper_role,
+        )
+        self.assertIn(
+            "本文件只在执行 `W2` 时加载",
+            self.paper_review,
+        )
+
+    def test_w2_preserves_original_five_gates(self) -> None:
+        self.assertIn(
+            "M1 → P1 → P2 → W1 → W2",
+            self.paper_review,
+        )
+        self.assertIn(
+            "它不新增门禁",
+            self.paper_review,
+        )
+
+    def test_w2_does_not_replace_author_or_mechanical_checks(self) -> None:
+        self.assertIn(
+            "不替代",
+            self.paper_review,
+        )
+        self.assertIn(
+            "自审框架.md",
+            self.paper_review,
+        )
+        self.assertIn(
+            "Word / LaTeX 确定性构建与格式门禁",
+            self.paper_review,
+        )
+
+    def test_w2_rejects_unverified_fixed_thresholds(self) -> None:
+        for phrase in (
+            "固定摘要字数",
+            "固定假设数量",
+            "固定参考文献数量",
+            "固定正文理想页数",
+            "固定评分权重",
+        ):
+            self.assertIn(
+                phrase,
+                self.paper_review,
+            )
+
+        self.assertIn(
+            "未经核验写成当届官方要求",
+            self.paper_review,
+        )
+
+    def test_w2_checks_claim_evidence_consistency(self) -> None:
+        for phrase in (
+            "摘要 ↔ 正文",
+            "模型 ↔ 代码",
+            "结果 ↔ 图表",
+            "验证 ↔ 结论",
+            "参考文献 ↔ 正文",
+        ):
+            self.assertIn(
+                phrase,
+                self.paper_review,
+            )
+
+    def test_w2_award_prediction_is_replaced_by_readiness(self) -> None:
+        self.assertIn(
+            "可选准备度评价",
+            self.paper_review,
+        )
+        self.assertIn(
+            "`S`",
+            self.paper_review,
+        )
+        self.assertIn(
+            "`A`",
+            self.paper_review,
+        )
+        self.assertIn(
+            "`B`",
+            self.paper_review,
+        )
+        self.assertIn(
+            "`C`",
+            self.paper_review,
+        )
+        self.assertIn(
+            "不是获奖概率",
+            self.paper_review,
+        )
+        self.assertIn(
+            "不映射国一、国二、省奖",
+            self.paper_review,
+        )
+
+    def test_w2_does_not_use_ai_style_as_compliance_proxy(self) -> None:
+        self.assertIn(
+            "不得使用“AI 痕迹重不重”",
+            self.paper_review,
+        )
+        self.assertIn(
+            "是否按规则声明",
+            self.paper_review,
+        )
+        self.assertIn(
+            "核心结论是否有真实证据",
+            self.paper_review,
+        )
+
+    def test_w2_requires_precise_evidence_location(self) -> None:
+        for phrase in (
+            "页码",
+            "章节",
+            "图表编号",
+            "公式编号",
+            "官方规则来源",
+        ):
+            self.assertIn(
+                phrase,
+                self.paper_review,
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
