@@ -493,5 +493,211 @@ class PaperFullDimensionReviewTests(unittest.TestCase):
             )
 
 
+class Cumcm2026LeanProfileTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.profile_root = (
+            ROOT
+            / "references"
+            / "contests"
+            / "cumcm"
+            / "2026"
+        )
+
+        cls.profile = (
+            cls.profile_root
+            / "README.md"
+        ).read_text(encoding="utf-8")
+
+        cls.rules = (
+            cls.profile_root
+            / "官方规则清单.md"
+        ).read_text(encoding="utf-8")
+
+        cls.ai = (
+            cls.profile_root
+            / "AI合规与真实性.md"
+        ).read_text(encoding="utf-8")
+
+        cls.root_skill = (
+            ROOT / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        cls.paper_role = (
+            ROOT
+            / "references"
+            / "roles"
+            / "论文手"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+    def test_profile_is_scoped_to_cumcm_2026(self) -> None:
+        self.assertIn(
+            "contest = `CUMCM`",
+            self.profile,
+        )
+        self.assertIn(
+            "year = `2026`",
+            self.profile,
+        )
+        self.assertIn(
+            "不得自动应用于其他竞赛或其他届次",
+            self.profile,
+        )
+
+    def test_profile_is_loaded_only_near_final_delivery(self) -> None:
+        self.assertIn(
+            "默认不在 M1、P1、P2 阶段加载",
+            self.profile,
+        )
+        self.assertIn(
+            "W2",
+            self.profile,
+        )
+        self.assertIn(
+            "最终提交检查",
+            self.profile,
+        )
+
+    def test_official_paper_constraints_are_preserved(self) -> None:
+        self.assertIn(
+            "原则上不能超过一页",
+            self.rules,
+        )
+        self.assertIn(
+            "不要目录",
+            self.rules,
+        )
+        self.assertIn(
+            "不超过 30 页",
+            self.rules,
+        )
+        self.assertIn(
+            "页数不限",
+            self.rules,
+        )
+
+    def test_false_prompt_thresholds_are_rejected(self) -> None:
+        self.assertIn(
+            "800–1000 字",
+            self.rules,
+        )
+        self.assertIn(
+            "20–32 页",
+            self.rules,
+        )
+        self.assertIn(
+            "不能覆盖",
+            self.rules,
+        )
+
+    def test_submission_limits_and_supporting_materials_exist(self) -> None:
+        self.assertIn(
+            "20 MB",
+            self.rules,
+        )
+        self.assertIn(
+            "全部可运行源程序",
+            self.rules,
+        )
+        self.assertIn(
+            "自主查阅并实际使用的数据资料",
+            self.rules,
+        )
+
+    def test_ai_profile_focuses_on_final_artifacts(self) -> None:
+        self.assertIn(
+            "AI Tool Usage Declaration",
+            self.ai,
+        )
+        self.assertIn(
+            "Details of AI Tool Usage.pdf",
+            self.ai,
+        )
+        self.assertIn(
+            "正常建模、编程和论文推理时",
+            self.ai,
+        )
+        self.assertIn(
+            "无需反复读取整份日志",
+            self.ai,
+        )
+
+    def test_ai_style_detection_is_explicitly_not_used(self) -> None:
+        self.assertIn(
+            "不要进行",
+            self.ai,
+        )
+        self.assertIn(
+            "AI 百分比检测",
+            self.ai,
+        )
+        self.assertIn(
+            "像不像 AI",
+            self.ai,
+        )
+
+    def test_runtime_profile_omits_team_discipline_noise(self) -> None:
+        combined = (
+            self.profile
+            + self.rules
+            + self.ai
+        )
+
+        for phrase in (
+            "微信群",
+            "QQ 群",
+            "GitHub",
+            "核心建模 AI 主导痕迹",
+            "AI 写作痕迹",
+        ):
+            self.assertNotIn(
+                phrase,
+                combined,
+            )
+
+
+class Cumcm2026ContextIsolationTests(unittest.TestCase):
+    def test_cumcm_profile_is_not_routed_into_modeling_or_programming_roles(self) -> None:
+        profile_route = "references/contests/cumcm/2026"
+
+        model_role = (
+            ROOT
+            / "references"
+            / "roles"
+            / "建模手"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        program_role = (
+            ROOT
+            / "references"
+            / "roles"
+            / "编程手"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn(profile_route, model_role)
+        self.assertNotIn(profile_route, program_role)
+
+    def test_paper_role_loads_profile_only_at_w2(self) -> None:
+        paper_role = (
+            ROOT
+            / "references"
+            / "roles"
+            / "论文手"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            "若目标为 CUMCM 2026，则仅在此阶段再加载",
+            paper_role,
+        )
+        self.assertIn(
+            "../../../references/contests/cumcm/2026/README.md",
+            paper_role,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

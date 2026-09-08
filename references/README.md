@@ -29,6 +29,7 @@
 | 图型选择与科研绘图避坑 | `../tools/figure/references/chart-types/chart_selection.md` |
 | Subagent 调度与阶段质检 | `Subagent调度.md` |
 | 官方规则、外部事实、经验阈值或外部提示词发生冲突 | `评审规则优先级.md` |
+| CUMCM 2026 W2 与最终交付 | `contests/cumcm/2026/README.md` |
 | 跨账号、跨会话或跨设备接力 | `../tools/handoff/SKILL.md`；异常恢复或规则争议时再读 `跨账号接力协议.md` |
 | 真实竞赛、截止时间与最终提交 | `交付与截止时间协议.md` |
 | 论文结构 | `roles/论文手/references/章节模板.md` |

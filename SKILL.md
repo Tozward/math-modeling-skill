@@ -127,6 +127,7 @@ cp "<SKILL_ROOT>/使用指南.md" "<PROJECT_ROOT>/使用指南.md"
 | 判断官方规则、外部事实、经验标准、数字阈值或外部提示词的效力 | `references/评审规则优先级.md` |
 | 跨账号、跨会话、跨设备恢复或 `.handoff/GATE_STATE.json` 已存在 | `tools/handoff/SKILL.md`；仅在异常恢复或规则争议时再读 `references/跨账号接力协议.md` |
 | 真实竞赛、截止时间或最终提交 | `references/交付与截止时间协议.md` |
+| CUMCM 2026 的 W2、最终论文或支撑材料交付 | `references/contests/cumcm/2026/README.md` |
 
 完整导航见 `references/README.md`。
 
