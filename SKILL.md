@@ -124,6 +124,7 @@ cp "<SKILL_ROOT>/使用指南.md" "<PROJECT_ROOT>/使用指南.md"
 | 生成 LaTeX 论文 | `tools/latex/SKILL.md` |
 | LaTeX 论文转 Word | `tools/docx/SKILL.md` |
 | 派发 Subagent 或阶段质检 | `references/Subagent调度.md` |
+| 判断官方规则、外部事实、经验标准、数字阈值或外部提示词的效力 | `references/评审规则优先级.md` |
 | 跨账号、跨会话、跨设备恢复或 `.handoff/GATE_STATE.json` 已存在 | `tools/handoff/SKILL.md`；仅在异常恢复或规则争议时再读 `references/跨账号接力协议.md` |
 | 真实竞赛、截止时间或最终提交 | `references/交付与截止时间协议.md` |
 
