@@ -34,7 +34,7 @@ description: 数学建模的 Python 或 MATLAB 实现、运行、表格输出、
 6. 将 `scripts/plot_style.py` 或 MATLAB 的三个出版绘图工具复制到 `PROJECT_ROOT/utils/` 后使用。按 `tools/figure/SKILL.md` 的 Nature/SCI 视觉论证流程生成三类候选图，每类至少 3 张、合计至少 9 张，且每个子问题在三类中各至少 1 张：不把不同重要性的面板机械等分，不用长标题、密集逐点标记、装饰性纹理或面板内重复图例堆成仪表盘；统计标注必须由代码计算，官方模板要求优先于内置基线。
 7. 所有正式图必须经 `tools/figure/scripts/export_figure.py` 或 `export_publication_figure()` 的布局与设计门禁，同时输出 SVG 与至少 300 DPI PNG；再运行 `python "<SKILL_ROOT>/references/roles/编程手/scripts/figure_audit.py" "<PROJECT_ROOT>/figures" --questions q1 q2 ... qN --strict`，实际打开彩色 PNG 和灰度预览，在论文预计尺寸下检查视觉层级、缺字、裁切、遮挡、颜色、尺度和面板一致性。有问题则改代码、重跑、重审，不能关闭门禁后继续，也不能直接修改位图。
 8. 生成复现清单：`python scripts/repro_manifest.py --project-root <PROJECT_ROOT> ...`。
-9. 按 `references/质检清单.md` 完成作者自检，再派发独立质检 Subagent 执行 `P2` 编程终检；未返回 `PASS` 不得进入论文阶段或宣称编程交付完成。
+9. 按 `references/质检清单.md` 完成作者自检，再派发独立质检 Subagent 执行 `P2` 编程终检；验收时同时加载 `references/结果可靠性终检.md`，重点复核真实输入与预处理、M1 模型合同与代码一致性、求解状态、参数来源、结果合理性、必要的验证/误差/敏感性/稳健性、图表与关键数字证据链和独立复现；未返回 `PASS` 不得进入论文阶段或宣称编程交付完成。
 
 ## 阶段内独立门禁
 
@@ -55,6 +55,6 @@ description: 数学建模的 Python 或 MATLAB 实现、运行、表格输出、
 | 需要具体算法 | `../../../references/算法索引.md`，再读取匹配的 `../../../assets/*.md` |
 | 处理 Excel | `../../../tools/xlsx/SKILL.md` |
 | 交付前 | `references/质检清单.md` |
-| 阶段内独立验收 | `../../../references/Subagent调度.md` |
+| 阶段内独立验收 | `../../../references/Subagent调度.md`；执行 `P2` 时同时读取 `references/结果可靠性终检.md` |
 
 若实际运行证明模型公式、约束或参数定义冲突，停止通过改算法规避问题，把证据反馈给建模手。
