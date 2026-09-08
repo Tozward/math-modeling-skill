@@ -1,7 +1,7 @@
 # CURRENT TASK
 
-> 本文件是当前项目状态的简明权威记录。
-> 保持短小，在完成实质性工作后及时更新。
+> 本文件记录项目级当前状态。
+> 正在执行的原子工作以 `.handoff/ACTIVE_WORK.json` 为即时权威恢复点。
 
 更新时间：
 未开始
@@ -33,9 +33,17 @@ NOT_STARTED
 - W1：NOT_STARTED
 - W2：NOT_STARTED
 
-机器可读权威状态：
+机器可读门禁状态：
 
 `.handoff/GATE_STATE.json`
+
+正在执行的原子工作：
+
+`.handoff/ACTIVE_WORK.json`
+
+如果其状态为 `IN_PROGRESS`，
+恢复时优先执行其中的 `next_action`，
+不得仅依据本文件重新规划任务。
 
 ## 当前目标
 
@@ -45,7 +53,7 @@ NOT_STARTED
 
 无。
 
-恢复项目时，只读取这里明确列出的 `DECISIONS.md` 决策 ID。
+恢复项目时只读取这里明确列出的 `DECISIONS.md` 决策 ID。
 
 ## 权威输入
 
@@ -62,6 +70,9 @@ NOT_STARTED
 ## Next Action
 
 初始化比赛项目并确定第一项建模任务。
+
+开始较大的语义工作前，
+必须先创建 `ACTIVE_WORK`。
 
 ## Do Not Redo
 

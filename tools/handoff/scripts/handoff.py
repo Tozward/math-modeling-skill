@@ -13,8 +13,14 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA_VERSION = 1
+ACTIVE_WORK_SCHEMA_VERSION = 1
 
 GATES = ("M1", "P1", "P2", "W1", "W2")
+
+ACTIVE_WORK_STATUSES = (
+    "IDLE",
+    "IN_PROGRESS",
+)
 
 STATUSES = (
     "NOT_STARTED",
@@ -35,6 +41,7 @@ TEMPLATE_FILES = (
 
 LOCK_REL = Path(".handoff") / "SKILL.lock"
 STATE_REL = Path(".handoff") / "GATE_STATE.json"
+ACTIVE_WORK_REL = Path(".handoff") / "ACTIVE_WORK.json"
 EVIDENCE_DIR_REL = Path(".handoff") / "gate-evidence"
 
 
@@ -438,6 +445,187 @@ def initial_gate_state(
     }
 
 
+def initial_active_work_state() -> dict[str, Any]:
+    return {
+        "schema_version": ACTIVE_WORK_SCHEMA_VERSION,
+        "status": "IDLE",
+        "active": None,
+        "last_completed": None,
+    }
+
+
+def validate_active_work_shape(
+    state: dict[str, Any],
+) -> list[str]:
+    issues: list[str] = []
+
+    if state.get(
+        "schema_version"
+    ) != ACTIVE_WORK_SCHEMA_VERSION:
+        issues.append(
+            "ACTIVE_WORK schema_version="
+            f"{state.get('schema_version')!r}，"
+            f"期望 {ACTIVE_WORK_SCHEMA_VERSION}"
+        )
+
+    status = state.get(
+        "status"
+    )
+
+    if status not in ACTIVE_WORK_STATUSES:
+        issues.append(
+            f"ACTIVE_WORK status 非法：{status!r}"
+        )
+
+        return issues
+
+    active = state.get(
+        "active"
+    )
+
+    if (
+        status == "IN_PROGRESS"
+        and not isinstance(active, dict)
+    ):
+        issues.append(
+            "ACTIVE_WORK 为 IN_PROGRESS，"
+            "但 active 不是对象"
+        )
+
+    if (
+        status == "IDLE"
+        and active is not None
+    ):
+        issues.append(
+            "ACTIVE_WORK 为 IDLE，"
+            "但 active 未清空"
+        )
+
+    last_completed = state.get(
+        "last_completed"
+    )
+
+    if (
+        last_completed is not None
+        and not isinstance(last_completed, dict)
+    ):
+        issues.append(
+            "ACTIVE_WORK last_completed "
+            "必须为对象或 null"
+        )
+
+    return issues
+
+
+def require_active_work(
+    project_root: Path,
+) -> dict[str, Any]:
+    state = load_json(
+        project_root / ACTIVE_WORK_REL
+    )
+
+    issues = validate_active_work_shape(
+        state
+    )
+
+    if issues:
+        raise HandoffError(
+            "ACTIVE_WORK.json 无效：\n"
+            + "\n".join(
+                f"- {item}"
+                for item in issues
+            )
+        )
+
+    return state
+
+
+def worktree_snapshot(
+    project_root: Path,
+) -> dict[str, Any]:
+    project_head = require_project_root(
+        project_root
+    )
+
+    status_text = git_status_porcelain(
+        project_root
+    )
+
+    lines = (
+        status_text
+        .rstrip()
+        .splitlines()
+        if status_text.strip()
+        else []
+    )
+
+    return {
+        "project_head": project_head,
+        "working_tree": lines,
+    }
+
+
+def snapshot_touched_files(
+    project_root: Path,
+    raw_paths: list[str],
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for raw in raw_paths:
+        path, relative = normalized_rel_path(
+            project_root,
+            raw,
+            must_exist=False,
+        )
+
+        if relative in seen:
+            continue
+
+        seen.add(
+            relative
+        )
+
+        record: dict[str, Any] = {
+            "path": relative,
+            "exists": path.exists(),
+        }
+
+        if path.exists():
+            if not path.is_file():
+                raise HandoffError(
+                    "--touch 只能记录普通文件："
+                    f"{relative}"
+                )
+
+            record[
+                "sha256"
+            ] = sha256_file(
+                path
+            )
+
+            record[
+                "size"
+            ] = path.stat().st_size
+
+        records.append(
+            record
+        )
+
+    return records
+
+
+def new_work_id() -> str:
+    return (
+        "work-"
+        + datetime.now(
+            timezone.utc
+        ).strftime(
+            "%Y%m%dT%H%M%S%fZ"
+        )
+    )
+
+
 def cmd_init(
     args: argparse.Namespace,
 ) -> int:
@@ -477,6 +665,7 @@ def cmd_init(
     targets += [
         project_root / LOCK_REL,
         project_root / STATE_REL,
+        project_root / ACTIVE_WORK_REL,
     ]
 
     existing = [
@@ -581,6 +770,11 @@ def cmd_init(
             state,
         )
 
+        write_json_atomic(
+            project_root / ACTIVE_WORK_REL,
+            initial_active_work_state(),
+        )
+
     except Exception:
         for path in reversed(copied):
             try:
@@ -630,6 +824,10 @@ def cmd_init(
 
     print(
         f"  - {STATE_REL.as_posix()}"
+    )
+
+    print(
+        f"  - {ACTIVE_WORK_REL.as_posix()}"
     )
 
     print(
@@ -950,6 +1148,7 @@ def cmd_check(
     required += [
         project_root / LOCK_REL,
         project_root / STATE_REL,
+        project_root / ACTIVE_WORK_REL,
     ]
 
     missing = [
@@ -1083,25 +1282,130 @@ def cmd_check(
             "GATE_STATE.json 结构有效",
         )
 
+    try:
+        active_work = require_active_work(
+            project_root
+        )
+
+    except HandoffError as exc:
+        print_check_line(
+            "FAIL",
+            str(exc),
+        )
+        return 2
+
+    active_in_progress = (
+        active_work.get("status")
+        == "IN_PROGRESS"
+    )
+
+    last_completed = active_work.get(
+        "last_completed"
+    )
+
+    completed_pending_checkpoint = (
+        not active_in_progress
+        and isinstance(last_completed, dict)
+        and last_completed.get(
+            "final_project_head"
+        ) == project_head
+        and isinstance(
+            last_completed.get(
+                "final_working_tree"
+            ),
+            list,
+        )
+    )
+
+    if active_in_progress:
+        active = active_work.get(
+            "active",
+            {},
+        )
+
+        print_check_line(
+            "RECOVER",
+            "检测到未结束的 ACTIVE_WORK；"
+            "上一工作单元可能被中断",
+        )
+
+        print(
+            "       work_id: "
+            f"{active.get('work_id', 'UNKNOWN')}"
+        )
+
+        print(
+            "       stage: "
+            f"{active.get('stage', 'UNKNOWN')}"
+        )
+
+        print(
+            "       atomic_unit: "
+            f"{active.get('atomic_unit', 'UNKNOWN')}"
+        )
+
+        print(
+            "       next_action: "
+            f"{active.get('next_action', 'UNKNOWN')}"
+        )
+
+        print(
+            "       checkpoint_count: "
+            f"{active.get('checkpoint_count', 0)}"
+        )
+
+    else:
+        print_check_line(
+            "PASS",
+            "ACTIVE_WORK 当前为 IDLE",
+        )
+
     status_text = git_status_porcelain(
         project_root
     )
 
     if status_text.strip():
-        strict_issues.append(
-            "项目 working tree 非 clean"
-        )
-
-        print_check_line(
-            "WARN",
-            "项目 working tree 非 clean",
-        )
-
         lines = (
             status_text
             .rstrip()
             .splitlines()
         )
+
+        if active_in_progress:
+            print_check_line(
+                "RECOVER",
+                "项目 working tree 非 clean；"
+                "当前存在 IN_PROGRESS 工作记录，"
+                "保留这些修改并从恢复点继续",
+            )
+
+        elif completed_pending_checkpoint:
+            print_check_line(
+                "RECOVER",
+                "上一原子工作已 finish-work，"
+                "但此后尚未建立 Git checkpoint；"
+                "保留当前全部修改并完成收尾持久化",
+            )
+
+            print(
+                "       summary: "
+                f"{last_completed.get('summary', 'UNKNOWN')}"
+            )
+
+            print(
+                "       next_action: "
+                f"{last_completed.get('next_action_after', 'UNKNOWN')}"
+            )
+
+        else:
+            strict_issues.append(
+                "项目 working tree 非 clean"
+            )
+
+            print_check_line(
+                "WARN",
+                "项目 working tree 非 clean",
+            )
 
         for line in lines[:20]:
             print(
@@ -1300,6 +1604,414 @@ def require_gate_evidence_path(
             f"{EVIDENCE_DIR_REL.as_posix()}/ 下："
             f"{relative}"
         )
+
+
+def cmd_begin_work(
+    args: argparse.Namespace,
+) -> int:
+    project_root = Path(
+        args.project_root
+    ).expanduser().resolve()
+
+    require_project_root(
+        project_root
+    )
+
+    state = require_active_work(
+        project_root
+    )
+
+    if state.get(
+        "status"
+    ) == "IN_PROGRESS":
+        active = state.get(
+            "active",
+            {},
+        )
+
+        raise HandoffError(
+            "已有未结束的 ACTIVE_WORK，"
+            "拒绝覆盖。\n"
+            "请先恢复、checkpoint 或 finish-work。\n"
+            "当前 work_id: "
+            f"{active.get('work_id', 'UNKNOWN')}\n"
+            "当前 atomic_unit: "
+            f"{active.get('atomic_unit', 'UNKNOWN')}"
+        )
+
+    snapshot = worktree_snapshot(
+        project_root
+    )
+
+    last_completed = state.get(
+        "last_completed"
+    )
+
+    if (
+        isinstance(last_completed, dict)
+        and snapshot["working_tree"]
+    ):
+        raise HandoffError(
+            "上一原子工作已经 finish-work，"
+            "但项目尚未完成持久化收尾。\n"
+            "开始新的昂贵工作前，"
+            "请先更新必要状态并建立 clean Git checkpoint。\n"
+            "上一工作："
+            f"{last_completed.get('summary', 'UNKNOWN')}\n"
+            "建议下一动作："
+            f"{last_completed.get('next_action_after', 'UNKNOWN')}"
+        )
+
+    timestamp = now_iso()
+
+    active = {
+        "work_id": new_work_id(),
+        "stage": args.stage,
+        "objective": args.objective,
+        "atomic_unit": args.atomic_unit,
+        "next_action": args.next_action,
+        "inputs": list(
+            args.input
+        ),
+        "expected_outputs": list(
+            args.expected_output
+        ),
+        "started_at": timestamp,
+        "updated_at": timestamp,
+        "started_project_head": (
+            snapshot["project_head"]
+        ),
+        "last_project_head": (
+            snapshot["project_head"]
+        ),
+        "working_tree_at_start": (
+            snapshot["working_tree"]
+        ),
+        "checkpoint_count": 0,
+        "last_checkpoint": None,
+        "touched_files": [],
+    }
+
+    if args.actor:
+        active[
+            "actor"
+        ] = args.actor
+
+    state[
+        "status"
+    ] = "IN_PROGRESS"
+
+    state[
+        "active"
+    ] = active
+
+    write_json_atomic(
+        project_root / ACTIVE_WORK_REL,
+        state,
+    )
+
+    print(
+        "ACTIVE_WORK 已开始。"
+    )
+
+    print(
+        f"work_id: {active['work_id']}"
+    )
+
+    print(
+        f"stage: {active['stage']}"
+    )
+
+    print(
+        f"atomic_unit: {active['atomic_unit']}"
+    )
+
+    print(
+        f"next_action: {active['next_action']}"
+    )
+
+    if snapshot[
+        "working_tree"
+    ]:
+        print(
+            "注意：begin-work 时 working tree "
+            "已经存在未提交修改，已记录为起始快照。"
+        )
+
+    return 0
+
+
+def cmd_checkpoint(
+    args: argparse.Namespace,
+) -> int:
+    project_root = Path(
+        args.project_root
+    ).expanduser().resolve()
+
+    require_project_root(
+        project_root
+    )
+
+    state = require_active_work(
+        project_root
+    )
+
+    if state.get(
+        "status"
+    ) != "IN_PROGRESS":
+        raise HandoffError(
+            "当前没有 IN_PROGRESS 工作，"
+            "不能 checkpoint。"
+        )
+
+    active = state[
+        "active"
+    ]
+
+    snapshot = worktree_snapshot(
+        project_root
+    )
+
+    touched = snapshot_touched_files(
+        project_root,
+        list(args.touch),
+    )
+
+    count = int(
+        active.get(
+            "checkpoint_count",
+            0,
+        )
+    ) + 1
+
+    checkpoint: dict[str, Any] = {
+        "checkpoint_number": count,
+        "recorded_at": now_iso(),
+        "project_head": (
+            snapshot["project_head"]
+        ),
+        "working_tree": (
+            snapshot["working_tree"]
+        ),
+        "next_action": args.next_action,
+        "touched_files": touched,
+    }
+
+    if args.note:
+        checkpoint[
+            "note"
+        ] = args.note
+
+    active[
+        "checkpoint_count"
+    ] = count
+
+    active[
+        "updated_at"
+    ] = checkpoint[
+        "recorded_at"
+    ]
+
+    active[
+        "last_project_head"
+    ] = snapshot[
+        "project_head"
+    ]
+
+    active[
+        "next_action"
+    ] = args.next_action
+
+    active[
+        "last_checkpoint"
+    ] = checkpoint
+
+    if touched:
+        known: dict[
+            str,
+            dict[str, Any],
+        ] = {
+            item["path"]: item
+            for item in active.get(
+                "touched_files",
+                [],
+            )
+            if isinstance(item, dict)
+            and isinstance(
+                item.get("path"),
+                str,
+            )
+        }
+
+        for item in touched:
+            known[
+                item["path"]
+            ] = item
+
+        active[
+            "touched_files"
+        ] = list(
+            known.values()
+        )
+
+    state[
+        "active"
+    ] = active
+
+    write_json_atomic(
+        project_root / ACTIVE_WORK_REL,
+        state,
+    )
+
+    print(
+        "ACTIVE_WORK checkpoint 已记录。"
+    )
+
+    print(
+        f"work_id: {active.get('work_id')}"
+    )
+
+    print(
+        f"checkpoint: {count}"
+    )
+
+    print(
+        f"project_head: {snapshot['project_head']}"
+    )
+
+    print(
+        f"dirty_entries: {len(snapshot['working_tree'])}"
+    )
+
+    print(
+        f"next_action: {args.next_action}"
+    )
+
+    return 0
+
+
+def cmd_finish_work(
+    args: argparse.Namespace,
+) -> int:
+    project_root = Path(
+        args.project_root
+    ).expanduser().resolve()
+
+    require_project_root(
+        project_root
+    )
+
+    state = require_active_work(
+        project_root
+    )
+
+    if state.get(
+        "status"
+    ) != "IN_PROGRESS":
+        raise HandoffError(
+            "当前没有 IN_PROGRESS 工作，"
+            "不能 finish-work。"
+        )
+
+    active = dict(
+        state[
+            "active"
+        ]
+    )
+
+    snapshot = worktree_snapshot(
+        project_root
+    )
+
+    touched = snapshot_touched_files(
+        project_root,
+        list(args.touch),
+    )
+
+    completed = dict(
+        active
+    )
+
+    completed[
+        "finished_at"
+    ] = now_iso()
+
+    completed[
+        "summary"
+    ] = args.summary
+
+    completed[
+        "next_action_after"
+    ] = args.next_action
+
+    completed[
+        "final_project_head"
+    ] = snapshot[
+        "project_head"
+    ]
+
+    completed[
+        "final_working_tree"
+    ] = snapshot[
+        "working_tree"
+    ]
+
+    if touched:
+        completed[
+            "final_touched_files"
+        ] = touched
+
+    if args.actor:
+        completed[
+            "finished_by"
+        ] = args.actor
+
+    state[
+        "status"
+    ] = "IDLE"
+
+    state[
+        "active"
+    ] = None
+
+    state[
+        "last_completed"
+    ] = completed
+
+    write_json_atomic(
+        project_root / ACTIVE_WORK_REL,
+        state,
+    )
+
+    print(
+        "ACTIVE_WORK 已结束并保存最近完成记录。"
+    )
+
+    print(
+        f"work_id: {completed.get('work_id')}"
+    )
+
+    print(
+        f"summary: {args.summary}"
+    )
+
+    print(
+        f"next_action: {args.next_action}"
+    )
+
+    if snapshot[
+        "working_tree"
+    ]:
+        print(
+            "注意：工作已结束，但 working tree "
+            "仍非 clean。"
+        )
+
+        print(
+            "请在安全时机检查并建立本地 Git checkpoint。"
+        )
+
+    return 0
 
 
 def cmd_record_gate(
@@ -1711,6 +2423,123 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_check.set_defaults(
         func=cmd_check
+    )
+
+    p_begin = sub.add_parser(
+        "begin-work",
+        help="长任务前写入抢占安全工作记录",
+    )
+
+    p_begin.add_argument(
+        "--project-root",
+        required=True,
+    )
+
+    p_begin.add_argument(
+        "--stage",
+        required=True,
+    )
+
+    p_begin.add_argument(
+        "--objective",
+        required=True,
+    )
+
+    p_begin.add_argument(
+        "--atomic-unit",
+        required=True,
+    )
+
+    p_begin.add_argument(
+        "--next-action",
+        required=True,
+    )
+
+    p_begin.add_argument(
+        "--input",
+        action="append",
+        default=[],
+        help="当前工作依赖的输入，可重复提供",
+    )
+
+    p_begin.add_argument(
+        "--expected-output",
+        action="append",
+        default=[],
+        help="本原子工作预计产生的输出，可重复提供",
+    )
+
+    p_begin.add_argument(
+        "--actor",
+    )
+
+    p_begin.set_defaults(
+        func=cmd_begin_work
+    )
+
+    p_checkpoint = sub.add_parser(
+        "checkpoint",
+        help="保存 IN_PROGRESS 工作的最新恢复点",
+    )
+
+    p_checkpoint.add_argument(
+        "--project-root",
+        required=True,
+    )
+
+    p_checkpoint.add_argument(
+        "--next-action",
+        required=True,
+    )
+
+    p_checkpoint.add_argument(
+        "--note",
+    )
+
+    p_checkpoint.add_argument(
+        "--touch",
+        action="append",
+        default=[],
+        help="本工作单元涉及的文件，可重复提供",
+    )
+
+    p_checkpoint.set_defaults(
+        func=cmd_checkpoint
+    )
+
+    p_finish = sub.add_parser(
+        "finish-work",
+        help="结束当前原子工作并保存最近完成记录",
+    )
+
+    p_finish.add_argument(
+        "--project-root",
+        required=True,
+    )
+
+    p_finish.add_argument(
+        "--summary",
+        required=True,
+    )
+
+    p_finish.add_argument(
+        "--next-action",
+        required=True,
+    )
+
+    p_finish.add_argument(
+        "--touch",
+        action="append",
+        default=[],
+        help="本工作单元涉及的文件，可重复提供",
+    )
+
+    p_finish.add_argument(
+        "--actor",
+    )
+
+    p_finish.set_defaults(
+        func=cmd_finish_work
     )
 
     p_record = sub.add_parser(

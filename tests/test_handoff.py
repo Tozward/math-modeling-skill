@@ -691,5 +691,709 @@ class HandoffCLITest(unittest.TestCase):
         )
 
 
+    def test_init_creates_idle_active_work(self) -> None:
+        self._init_project()
+
+        active = json.loads(
+            (
+                self.project
+                / ".handoff"
+                / "ACTIVE_WORK.json"
+            ).read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertEqual(
+            active["status"],
+            "IDLE",
+        )
+
+        self.assertIsNone(
+            active["active"]
+        )
+
+        self.assertIsNone(
+            active["last_completed"]
+        )
+
+    def test_begin_work_records_write_ahead_state(self) -> None:
+        self._init_project()
+
+        result = self._handoff(
+            "begin-work",
+            "--project-root",
+            str(self.project),
+            "--stage",
+            "M1",
+            "--objective",
+            "完成问题一模型设计",
+            "--atomic-unit",
+            "比较候选模型并冻结主模型",
+            "--next-action",
+            "读取数据特征并完成模型适配性比较",
+            "--input",
+            "题目.pdf",
+            "--expected-output",
+            "题目分析报告.md",
+            "--actor",
+            "member-a",
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+        )
+
+        active = json.loads(
+            (
+                self.project
+                / ".handoff"
+                / "ACTIVE_WORK.json"
+            ).read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertEqual(
+            active["status"],
+            "IN_PROGRESS",
+        )
+
+        work = active["active"]
+
+        self.assertEqual(
+            work["stage"],
+            "M1",
+        )
+
+        self.assertEqual(
+            work["atomic_unit"],
+            "比较候选模型并冻结主模型",
+        )
+
+        self.assertEqual(
+            work["next_action"],
+            "读取数据特征并完成模型适配性比较",
+        )
+
+        self.assertEqual(
+            work["checkpoint_count"],
+            0,
+        )
+
+    def test_begin_work_refuses_to_overwrite_in_progress(self) -> None:
+        self._init_project()
+
+        args = (
+            "begin-work",
+            "--project-root",
+            str(self.project),
+            "--stage",
+            "M1",
+            "--objective",
+            "测试目标",
+            "--atomic-unit",
+            "测试原子单元",
+            "--next-action",
+            "继续测试",
+        )
+
+        self._handoff(
+            *args
+        )
+
+        denied = self._handoff(
+            *args,
+            check=False,
+        )
+
+        self.assertEqual(
+            denied.returncode,
+            2,
+        )
+
+        self.assertIn(
+            "拒绝覆盖",
+            denied.stderr,
+        )
+
+    def test_checkpoint_updates_resume_point(self) -> None:
+        self._init_project()
+
+        self._handoff(
+            "begin-work",
+            "--project-root",
+            str(self.project),
+            "--stage",
+            "P2",
+            "--objective",
+            "实现问题一求解",
+            "--atomic-unit",
+            "完成核心求解器",
+            "--next-action",
+            "编写 solver.py",
+        )
+
+        solver = (
+            self.project / "solver.py"
+        )
+
+        solver.write_text(
+            "print('partial')\n",
+            encoding="utf-8",
+        )
+
+        result = self._handoff(
+            "checkpoint",
+            "--project-root",
+            str(self.project),
+            "--next-action",
+            "运行最小样例并核对边界条件",
+            "--note",
+            "求解器主体已写完",
+            "--touch",
+            "solver.py",
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+        )
+
+        active = json.loads(
+            (
+                self.project
+                / ".handoff"
+                / "ACTIVE_WORK.json"
+            ).read_text(
+                encoding="utf-8"
+            )
+        )
+
+        work = active["active"]
+
+        self.assertEqual(
+            work["checkpoint_count"],
+            1,
+        )
+
+        self.assertEqual(
+            work["next_action"],
+            "运行最小样例并核对边界条件",
+        )
+
+        self.assertEqual(
+            work["last_checkpoint"]["note"],
+            "求解器主体已写完",
+        )
+
+        touched = {
+            item["path"]: item
+            for item in work["touched_files"]
+        }
+
+        self.assertIn(
+            "solver.py",
+            touched,
+        )
+
+        self.assertTrue(
+            touched["solver.py"]["exists"],
+        )
+
+        self.assertIn(
+            "sha256",
+            touched["solver.py"],
+        )
+
+    def test_checkpoint_requires_active_work(self) -> None:
+        self._init_project()
+
+        result = self._handoff(
+            "checkpoint",
+            "--project-root",
+            str(self.project),
+            "--next-action",
+            "无",
+            check=False,
+        )
+
+        self.assertEqual(
+            result.returncode,
+            2,
+        )
+
+        self.assertIn(
+            "没有 IN_PROGRESS 工作",
+            result.stderr,
+        )
+
+    def test_finish_work_returns_idle_and_preserves_last_completed(self) -> None:
+        self._init_project()
+
+        self._handoff(
+            "begin-work",
+            "--project-root",
+            str(self.project),
+            "--stage",
+            "W2",
+            "--objective",
+            "核对摘要",
+            "--atomic-unit",
+            "核对摘要关键数字",
+            "--next-action",
+            "逐项比对摘要与结果表",
+        )
+
+        result = self._handoff(
+            "finish-work",
+            "--project-root",
+            str(self.project),
+            "--summary",
+            "摘要关键数字核对完成",
+            "--next-action",
+            "检查结论章节与摘要一致性",
+            "--actor",
+            "member-b",
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+        )
+
+        active = json.loads(
+            (
+                self.project
+                / ".handoff"
+                / "ACTIVE_WORK.json"
+            ).read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertEqual(
+            active["status"],
+            "IDLE",
+        )
+
+        self.assertIsNone(
+            active["active"]
+        )
+
+        completed = active[
+            "last_completed"
+        ]
+
+        self.assertEqual(
+            completed["summary"],
+            "摘要关键数字核对完成",
+        )
+
+        self.assertEqual(
+            completed["next_action_after"],
+            "检查结论章节与摘要一致性",
+        )
+
+    def test_check_reports_in_progress_recovery_state(self) -> None:
+        self._init_project()
+
+        self._handoff(
+            "begin-work",
+            "--project-root",
+            str(self.project),
+            "--stage",
+            "M1",
+            "--objective",
+            "问题一建模",
+            "--atomic-unit",
+            "建立候选模型比较",
+            "--next-action",
+            "继续完成适配性比较",
+        )
+
+        result = self._handoff(
+            "check",
+            "--skill-root",
+            str(self.skill),
+            "--project-root",
+            str(self.project),
+            "--strict",
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+        )
+
+        self.assertIn(
+            "[RECOVER]",
+            result.stdout,
+        )
+
+        self.assertIn(
+            "上一工作单元可能被中断",
+            result.stdout,
+        )
+
+        self.assertIn(
+            "继续完成适配性比较",
+            result.stdout,
+        )
+
+    def test_strict_check_allows_dirty_tree_during_active_work(self) -> None:
+        self._init_project()
+
+        self._handoff(
+            "begin-work",
+            "--project-root",
+            str(self.project),
+            "--stage",
+            "P2",
+            "--objective",
+            "代码实现",
+            "--atomic-unit",
+            "实现核心函数",
+            "--next-action",
+            "继续实现",
+        )
+
+        (
+            self.project / "partial.py"
+        ).write_text(
+            "x = 1\n",
+            encoding="utf-8",
+        )
+
+        result = self._handoff(
+            "check",
+            "--skill-root",
+            str(self.skill),
+            "--project-root",
+            str(self.project),
+            "--strict",
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+        )
+
+        self.assertIn(
+            "保留这些修改并从恢复点继续",
+            result.stdout,
+        )
+
+        self.assertNotIn(
+            "接力检查：FAIL",
+            result.stdout,
+        )
+
+
+    def test_strict_check_recovers_finished_work_before_git_checkpoint(self) -> None:
+        self._init_project()
+
+        self._handoff(
+            "begin-work",
+            "--project-root",
+            str(self.project),
+            "--stage",
+            "M1",
+            "--objective",
+            "完成候选模型比较",
+            "--atomic-unit",
+            "冻结问题一主模型",
+            "--next-action",
+            "完成模型比较",
+        )
+
+        (
+            self.project
+            / "model-choice.md"
+        ).write_text(
+            "最终选择模型 B。\n",
+            encoding="utf-8",
+        )
+
+        self._handoff(
+            "finish-work",
+            "--project-root",
+            str(self.project),
+            "--summary",
+            "问题一主模型已冻结为模型 B",
+            "--next-action",
+            "更新题目分析报告并建立 Git checkpoint",
+            "--touch",
+            "model-choice.md",
+        )
+
+        current_task = (
+            self.project
+            / "CURRENT_TASK.md"
+        )
+
+        with current_task.open(
+            "a",
+            encoding="utf-8",
+        ) as f:
+            f.write(
+                "\n收尾更新：主模型已经冻结。\n"
+            )
+
+        result = self._handoff(
+            "check",
+            "--skill-root",
+            str(self.skill),
+            "--project-root",
+            str(self.project),
+            "--strict",
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+        )
+
+        self.assertIn(
+            "已 finish-work",
+            result.stdout,
+        )
+
+        self.assertIn(
+            "问题一主模型已冻结为模型 B",
+            result.stdout,
+        )
+
+        self.assertIn(
+            "更新题目分析报告并建立 Git checkpoint",
+            result.stdout,
+        )
+
+
+    def test_new_work_requires_previous_finished_work_to_be_persisted(self) -> None:
+        self._init_project()
+
+        self._handoff(
+            "begin-work",
+            "--project-root",
+            str(self.project),
+            "--stage",
+            "M1",
+            "--objective",
+            "完成第一个原子任务",
+            "--atomic-unit",
+            "冻结模型选择",
+            "--next-action",
+            "完成模型选择",
+        )
+
+        (
+            self.project
+            / "model.md"
+        ).write_text(
+            "模型 B。\n",
+            encoding="utf-8",
+        )
+
+        self._handoff(
+            "finish-work",
+            "--project-root",
+            str(self.project),
+            "--summary",
+            "模型选择已完成",
+            "--next-action",
+            "开始参数确定",
+            "--touch",
+            "model.md",
+        )
+
+        denied = self._handoff(
+            "begin-work",
+            "--project-root",
+            str(self.project),
+            "--stage",
+            "M1",
+            "--objective",
+            "确定参数",
+            "--atomic-unit",
+            "确定核心参数",
+            "--next-action",
+            "读取数据并估计参数",
+            check=False,
+        )
+
+        self.assertEqual(
+            denied.returncode,
+            2,
+        )
+
+        self.assertIn(
+            "尚未完成持久化收尾",
+            denied.stderr,
+        )
+
+        self._commit_all(
+            self.project,
+            "persist completed atomic work",
+        )
+
+        accepted = self._handoff(
+            "begin-work",
+            "--project-root",
+            str(self.project),
+            "--stage",
+            "M1",
+            "--objective",
+            "确定参数",
+            "--atomic-unit",
+            "确定核心参数",
+            "--next-action",
+            "读取数据并估计参数",
+        )
+
+        self.assertEqual(
+            accepted.returncode,
+            0,
+        )
+
+
+class PreemptionProtocolDocumentationTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.agents = (
+            REPO_ROOT
+            / "tools"
+            / "handoff"
+            / "templates"
+            / "AGENTS.md"
+        ).read_text(encoding="utf-8")
+
+        cls.current_task = (
+            REPO_ROOT
+            / "tools"
+            / "handoff"
+            / "templates"
+            / "CURRENT_TASK.md"
+        ).read_text(encoding="utf-8")
+
+        cls.handoff_template = (
+            REPO_ROOT
+            / "tools"
+            / "handoff"
+            / "templates"
+            / "HANDOFF.md"
+        ).read_text(encoding="utf-8")
+
+        cls.skill = (
+            REPO_ROOT
+            / "tools"
+            / "handoff"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        cls.protocol = (
+            REPO_ROOT
+            / "references"
+            / "跨账号接力协议.md"
+        ).read_text(encoding="utf-8")
+
+    def test_expensive_work_requires_write_ahead_record(self) -> None:
+        self.assertIn(
+            "`begin-work` 成功之后再开始昂贵推理",
+            self.agents,
+        )
+
+        self.assertIn(
+            "必须 begin-work 的工作",
+            self.agents,
+        )
+
+    def test_atomic_units_must_not_cover_entire_major_gate(self) -> None:
+        for phrase in (
+            "整个 M1",
+            "整个 P2",
+            "整篇论文",
+            "整个 W2",
+        ):
+            self.assertIn(
+                phrase,
+                self.agents,
+            )
+
+    def test_recovery_prioritizes_active_work(self) -> None:
+        self.assertIn(
+            ".handoff/ACTIVE_WORK.json",
+            self.agents,
+        )
+
+        self.assertIn(
+            "不得重新执行 `begin-work`",
+            self.agents,
+        )
+
+        self.assertIn(
+            "保留现有 working tree",
+            self.agents,
+        )
+
+    def test_current_task_defers_immediate_resume_to_active_work(self) -> None:
+        self.assertIn(
+            "即时权威恢复点",
+            self.current_task,
+        )
+
+        self.assertIn(
+            "优先执行其中的 `next_action`",
+            self.current_task,
+        )
+
+    def test_planned_handoff_handles_in_progress_work(self) -> None:
+        self.assertIn(
+            "若当前工作能安全完成，执行 `finish-work`",
+            self.agents,
+        )
+
+        self.assertIn(
+            "至少执行一次 `checkpoint`",
+            self.agents,
+        )
+
+    def test_handoff_skill_exposes_preemption_commands(self) -> None:
+        for command in (
+            "begin-work",
+            "checkpoint",
+            "finish-work",
+        ):
+            self.assertIn(
+                command,
+                self.skill,
+            )
+
+    def test_protocol_preserves_five_gate_semantics(self) -> None:
+        self.assertIn(
+            "它不是新的 Gate",
+            self.protocol,
+        )
+
+        self.assertIn(
+            "M1/P1/P2/W1/W2",
+            self.protocol,
+        )
+
+    def test_handoff_template_checks_active_work_first(self) -> None:
+        self.assertIn(
+            "ACTIVE_WORK",
+            self.handoff_template,
+        )
+
+        self.assertIn(
+            "直接恢复该原子工作",
+            self.handoff_template,
+        )
+
+
+
+
 if __name__ == "__main__":
     unittest.main()

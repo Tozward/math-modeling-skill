@@ -85,12 +85,32 @@
 - 本地 Git；
 - `.handoff/GATE_STATE.json`；
 - `.handoff/SKILL.lock`；
+- `.handoff/ACTIVE_WORK.json`；
 - `CURRENT_TASK.md`；
 - `DECISIONS.md`；
 - `HANDOFF.md`。
 
 账号、会话或设备发生变化本身，
 不得导致已经有效的门禁 PASS 被重新执行。
+
+### 抢占安全扩展
+
+为应对高推理额度快速耗尽、客户端异常、连接中断或会话意外结束，
+handoff 额外维护：
+
+`.handoff/ACTIVE_WORK.json`
+
+采用：
+
+`begin-work → checkpoint* → finish-work`
+
+保存当前 atomic unit 的 write-ahead recovery state。
+
+较大的语义工作必须先建立 ACTIVE_WORK，
+再开始昂贵推理。
+
+它不新增 Gate，
+也不改变三角色和五门禁语义。
 
 ---
 
@@ -360,9 +380,10 @@ W2 覆盖：
 
 团队 fork 的完整稳定状态通过 Git commit/tag 标识。
 
-计划稳定标签：
+稳定标签：
 
-`cumcm-2026-team-v1`
+- `cumcm-2026-team-v1`：第一版稳定接力与评审增强；
+- `cumcm-2026-team-v2`：计划加入 preemption-safe handoff。
 
 `.handoff/SKILL.lock`
 应锁定实际正在使用的 Skill Git commit，
