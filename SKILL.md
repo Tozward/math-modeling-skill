@@ -34,6 +34,7 @@ cp "<SKILL_ROOT>/使用指南.md" "<PROJECT_ROOT>/使用指南.md"
 7. 交付前运行当前角色规定的全部完成门禁。任一命令未运行、退出码非零、独立验收未通过、仍有未处理问题或产物在门禁后发生变化时，不得声称“已完成”。
 8. 真实竞赛或其他有明确截止时间的任务，必须读取 `references/交付与截止时间协议.md`，核验当届官方截止时间与提交约束，尽早走通完整导出链路并维护可立即提交的 Checkpoint V1；后续优化不得破坏该版本。
 9. 最终回复列出实际读取的入口、实际运行的关键命令、退出码、Subagent 门禁状态、核心质量指标和仍存在的阻塞；不得只说“已检查”。
+10. 若 `PROJECT_ROOT/.handoff/GATE_STATE.json` 已存在，或用户明确要求启用跨账号、跨会话或跨设备接力，先读取 `tools/handoff/SKILL.md` 并执行其确定性恢复协议；只有当前任务实际涉及接力时才加载详细协议，不得因此一次性读取全部历史上下文。已有且仍有效的门禁 `PASS` 不得仅因换账号、换会话或缺少聊天历史而重复执行。
 
 ## Subagent 默认策略与阶段门禁
 
@@ -123,6 +124,7 @@ cp "<SKILL_ROOT>/使用指南.md" "<PROJECT_ROOT>/使用指南.md"
 | 生成 LaTeX 论文 | `tools/latex/SKILL.md` |
 | LaTeX 论文转 Word | `tools/docx/SKILL.md` |
 | 派发 Subagent 或阶段质检 | `references/Subagent调度.md` |
+| 跨账号、跨会话、跨设备恢复或 `.handoff/GATE_STATE.json` 已存在 | `tools/handoff/SKILL.md`；仅在异常恢复或规则争议时再读 `references/跨账号接力协议.md` |
 | 真实竞赛、截止时间或最终提交 | `references/交付与截止时间协议.md` |
 
 完整导航见 `references/README.md`。

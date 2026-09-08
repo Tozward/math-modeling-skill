@@ -56,6 +56,52 @@ Subagent 是阶段内临时协作者，不是第四个固定角色。主 Agent �
 
 存在未解决的 `P0` 或 `P1` 时只能返回 `FAIL`；缺少依赖、权限、输入或可验证证据时返回 `BLOCKED`。主 Agent 不得把 `FAIL` 改写成通过。
 
+## 跨账号模式下的门禁持久化
+
+本节只在 `PROJECT_ROOT/.handoff/GATE_STATE.json` 已存在时启用。
+
+未启用跨账号接力的普通项目继续执行原有门禁流程，不增加任何额外交付物或固定门禁。
+
+### 基本原则
+
+1. `M1/P1/P2/W1/W2` 的验收语义仍完全由本文件定义；handoff 工具只负责状态持久化、哈希检查和恢复，不参与语义判定。
+2. 每次固定门禁完成后，将质检 Subagent 的固定回执保存到 `.handoff/gate-evidence/<门禁>.md`。
+3. `.handoff/gate-evidence/` 属于内部质检状态，不是新的比赛交付物，不得写入正式论文。
+4. `PASS` 必须绑定被实际验收的产物、回执、项目 Git checkpoint 和 SHA-256；不得只保存一句“已通过”。
+5. 被保护产物在 `PASS` 后发生实质变化时，旧 `PASS` 失效。确定性 `check` 可以检测这种漂移，但不会自行修改机器状态；应显式将相关门禁置为 `STALE` 后重新验收。
+6. 跨账号、跨会话或跨设备本身不构成复验理由。产物未变化且确定性检查仍为 `PASS / VALID` 时，不重复派发该门禁。
+7. 原门禁返回 `FAIL`、`BLOCKED` 或已经 `STALE` 后，只有真正完成修正并由符合独立性要求的质检 Subagent 重新验收，才能重新记录 `PASS`。
+
+### `PASS` 的落盘顺序
+
+固定门禁返回 `PASS` 后，按以下顺序持久化：
+
+1. 保存最终质检回执到 `.handoff/gate-evidence/<门禁>.md`。
+2. 确认本次验收覆盖的权威产物已经冻结。
+3. 将被验收产物和 gate evidence 提交到项目本地 Git，形成验收 checkpoint。
+4. 使用 `tools/handoff/scripts/handoff.py record-gate` 记录 `PASS`，并明确列出实际受保护产物。
+5. 再提交更新后的 `.handoff/GATE_STATE.json`。
+
+这样 `validated_project_commit` 始终指向真正包含被验收产物和 evidence 的 Git checkpoint。
+
+### `FAIL` 与 `BLOCKED`
+
+固定门禁返回 `FAIL` 或 `BLOCKED` 时，可将回执保存到 `.handoff/gate-evidence/<门禁>.md`，再通过 handoff 工具记录相同状态。
+
+不得为了让跨账号状态看起来完整而把 `FAIL` 或 `BLOCKED` 改成 `PASS`。
+
+### 产物变化后的处理
+
+若已经通过门禁的受保护产物发生实质变化：
+
+1. 停止把旧 `PASS` 当作有效依据；
+2. 运行确定性 handoff 检查确认漂移范围；
+3. 使用 `invalidate` 将相关门禁显式标记为 `STALE`；
+4. 回到原门禁要求完成重新验收；
+5. 新的 `PASS` 必须使用重新验收后的 evidence 和新 artifact hash。
+
+不得因为后续阶段已经开始，就跳过受影响门禁的复验。
+
 ## 用户可选协作（默认关闭）
 
 | 任务 | 触发条件 | Subagent 输出 | 并行与边界 |
