@@ -699,5 +699,77 @@ class Cumcm2026ContextIsolationTests(unittest.TestCase):
         )
 
 
+class TeamExtensionsDocumentationTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.dev_doc = (
+            ROOT / "TEAM_EXTENSIONS.md"
+        ).read_text(encoding="utf-8")
+
+    def test_team_extensions_documents_core_invariants(self) -> None:
+        self.assertIn(
+            "M1 → P1 → P2 → W1 → W2",
+            self.dev_doc,
+        )
+        self.assertIn(
+            "三个固定角色",
+            self.dev_doc,
+        )
+        self.assertIn(
+            "SKILL_ROOT",
+            self.dev_doc,
+        )
+        self.assertIn(
+            "PROJECT_ROOT",
+            self.dev_doc,
+        )
+
+    def test_team_extensions_documents_all_major_extensions(self) -> None:
+        for phrase in (
+            "跨账号连续工作",
+            "评审规则优先级",
+            "M1 模型适配性终检",
+            "P2 结果可靠性终检",
+            "W2 全维度论文终审",
+            "CUMCM 2026 末期 Profile",
+        ):
+            self.assertIn(
+                phrase,
+                self.dev_doc,
+            )
+
+    def test_team_extensions_is_not_runtime_routed(self) -> None:
+        runtime_files = [
+            ROOT / "SKILL.md",
+            ROOT / "references" / "README.md",
+            ROOT / "references" / "roles" / "建模手" / "SKILL.md",
+            ROOT / "references" / "roles" / "编程手" / "SKILL.md",
+            ROOT / "references" / "roles" / "论文手" / "SKILL.md",
+            ROOT / "tools" / "handoff" / "SKILL.md",
+        ]
+
+        for runtime_file in runtime_files:
+            content = runtime_file.read_text(encoding="utf-8")
+            self.assertNotIn(
+                "TEAM_EXTENSIONS.md",
+                content,
+                msg=str(runtime_file),
+            )
+
+    def test_team_extensions_keeps_upstream_version_separate_from_fork_tag(self) -> None:
+        self.assertIn(
+            "`1.3.0`",
+            self.dev_doc,
+        )
+        self.assertIn(
+            "`cumcm-2026-team-v1`",
+            self.dev_doc,
+        )
+        self.assertIn(
+            "Git commit/tag",
+            self.dev_doc,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
