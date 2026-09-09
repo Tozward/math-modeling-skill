@@ -112,7 +112,28 @@ handoff 额外维护：
 它不新增 Gate，
 也不改变三角色和五门禁语义。
 
+### 跨平台与位置无关
+
+handoff 不绑定 Skill 的绝对安装位置。
+
+`SKILL_ROOT` 必须从当前实际加载的 Skill 解析，
+不同设备可以使用不同安装目录。
+
+跨设备一致性由 upstream `VERSION`
+与实际 Skill Git commit 判定，
+绝对路径不属于 Skill 身份。
+
+运行时命令不得依赖特定：
+
+- 操作系统；
+- 用户名；
+- Home 目录；
+- Windows 盘符；
+- 推荐安装位置；
+- shell 专用多行续行语法。
+
 ---
+
 
 ## 三、扩展 2：评审规则优先级
 
@@ -383,7 +404,8 @@ W2 覆盖：
 稳定标签：
 
 - `cumcm-2026-team-v1`：第一版稳定接力与评审增强；
-- `cumcm-2026-team-v2`：计划加入 preemption-safe handoff。
+- `cumcm-2026-team-v2`：加入 preemption-safe handoff；
+- `cumcm-2026-team-v3`：跨平台、位置无关的 handoff 与 Windows/macOS/Linux 验证。
 
 `.handoff/SKILL.lock`
 应锁定实际正在使用的 Skill Git commit，

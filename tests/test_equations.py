@@ -158,9 +158,23 @@ class EquationConversionTests(unittest.TestCase):
             command, options = observed[-1]
             self.assertEqual(command[command.index("--from") + 1], "latex")
             self.assertIn("--citeproc", command)
-            self.assertIn(f"--resource-path={source.parent}", command)
+            resource_argument = next(
+                item
+                for item in command
+                if item.startswith("--resource-path=")
+            )
+            resource_path = Path(
+                resource_argument.split("=", 1)[1]
+            )
+            self.assertEqual(
+                resource_path.resolve(),
+                source.parent.resolve(),
+            )
             self.assertIn("--reference-doc", command)
-            self.assertEqual(options["cwd"], source.parent)
+            self.assertEqual(
+                Path(options["cwd"]).resolve(),
+                source.parent.resolve(),
+            )
             self.assertEqual(options["timeout"], 45)
             self.assertTrue(output.is_file())
             self.assertEqual(result["warnings"], ["conversion warning"])

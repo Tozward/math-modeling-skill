@@ -12,7 +12,12 @@
 
 `SKILL_ROOT`：
 
-`$HOME/MathModelingWorkspace/skills/math-modeling-skill`
+当前实际激活的 `math-modeling` Skill 根目录，
+即其根 `SKILL.md` 所在目录。
+
+必须从本次实际加载的 Skill 路径解析，
+不得根据操作系统、用户名、Home 目录、
+盘符或推荐安装位置猜测或写死。
 
 `SKILL_ROOT` 只读。
 
@@ -22,7 +27,15 @@
 
 数学建模工作开始前读取：
 
-`$HOME/MathModelingWorkspace/skills/math-modeling-skill/SKILL.md`
+`<SKILL_ROOT>/SKILL.md`
+
+其中 `<SKILL_ROOT>` 是当前实际激活的
+`math-modeling` Skill 根目录占位符；
+执行命令时必须替换为实际路径，
+不得把占位符原样传给 shell。
+
+下面的 handoff 命令统一使用单行形式，
+避免依赖 bash 或 PowerShell 的专用续行语法。
 
 严格执行其渐进式加载规则。
 
@@ -61,11 +74,7 @@
 
 先运行：
 
-    python "$HOME/MathModelingWorkspace/skills/math-modeling-skill/tools/handoff/scripts/handoff.py" \
-      check \
-      --skill-root "$HOME/MathModelingWorkspace/skills/math-modeling-skill" \
-      --project-root . \
-      --strict
+    python "<SKILL_ROOT>/tools/handoff/scripts/handoff.py" check --skill-root "<SKILL_ROOT>" --project-root . --strict
 
 然后核验：
 
@@ -170,13 +179,7 @@
 
 长任务开始前，先执行：
 
-    python "$HOME/MathModelingWorkspace/skills/math-modeling-skill/tools/handoff/scripts/handoff.py" \
-      begin-work \
-      --project-root . \
-      --stage "<当前阶段>" \
-      --objective "<本阶段目标>" \
-      --atomic-unit "<当前原子工作>" \
-      --next-action "<第一步具体动作>"
+    python "<SKILL_ROOT>/tools/handoff/scripts/handoff.py" begin-work --project-root . --stage "<当前阶段>" --objective "<本阶段目标>" --atomic-unit "<当前原子工作>" --next-action "<第一步具体动作>"
 
 必要时追加：
 
@@ -205,10 +208,7 @@
 
 执行：
 
-    python "$HOME/MathModelingWorkspace/skills/math-modeling-skill/tools/handoff/scripts/handoff.py" \
-      checkpoint \
-      --project-root . \
-      --next-action "<中断后应直接执行的下一动作>"
+    python "<SKILL_ROOT>/tools/handoff/scripts/handoff.py" checkpoint --project-root . --next-action "<中断后应直接执行的下一动作>"
 
 对于当前实际涉及的重要文件，使用：
 
@@ -224,11 +224,7 @@
 
 原子工作真正完成后执行：
 
-    python "$HOME/MathModelingWorkspace/skills/math-modeling-skill/tools/handoff/scripts/handoff.py" \
-      finish-work \
-      --project-root . \
-      --summary "<本原子工作已完成什么>" \
-      --next-action "<下一原子工作是什么>"
+    python "<SKILL_ROOT>/tools/handoff/scripts/handoff.py" finish-work --project-root . --summary "<本原子工作已完成什么>" --next-action "<下一原子工作是什么>"
 
 必要时使用：
 
@@ -372,4 +368,4 @@ M1/P1/P2/W1/W2 的语义仍完全由原门禁协议决定。
 
 仅在跨账号恢复、异常状态或规则争议时再读取：
 
-`$HOME/MathModelingWorkspace/skills/math-modeling-skill/references/跨账号接力协议.md`
+`<SKILL_ROOT>/references/跨账号接力协议.md`

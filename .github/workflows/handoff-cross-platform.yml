@@ -1,0 +1,46 @@
+name: Handoff cross-platform
+
+on:
+  push:
+    branches:
+      - "team/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  handoff:
+    name: handoff / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Show versions
+        run: |
+          python --version
+          git --version
+
+      - name: Compile handoff
+        run: |
+          python -m py_compile tools/handoff/scripts/handoff.py
+          python -m py_compile tests/test_handoff.py
+
+      - name: Run handoff tests
+        run: python -m unittest tests.test_handoff -v

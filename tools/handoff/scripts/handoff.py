@@ -49,6 +49,18 @@ class HandoffError(RuntimeError):
     pass
 
 
+def _configure_utf8_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(
+                encoding="utf-8",
+                errors="replace",
+            )
+
+
+_configure_utf8_stdio()
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
 
@@ -60,11 +72,20 @@ def run_git(
 ) -> subprocess.CompletedProcess[str]:
     try:
         result = subprocess.run(
-            ["git", "-C", str(root), *args],
+            [
+                "git",
+                "-c",
+                "core.quotepath=false",
+                "-C",
+                str(root),
+                *args,
+            ],
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except FileNotFoundError as exc:
         raise HandoffError(
@@ -418,13 +439,6 @@ def validate_roots(
         )
 
 
-def skill_path_template() -> str:
-    return (
-        "$HOME/MathModelingWorkspace/"
-        "skills/math-modeling-skill"
-    )
-
-
 def initial_gate_state(
     contest: str | None,
     year: str | None,
@@ -747,7 +761,6 @@ def cmd_init(
             "schema_version": SCHEMA_VERSION,
             "upstream_version": version,
             "skill_commit": skill_commit,
-            "skill_path_template": skill_path_template(),
             "created_at": now_iso(),
         }
 

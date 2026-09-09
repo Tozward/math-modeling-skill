@@ -16,9 +16,13 @@ description: 数学建模项目的跨账号、跨会话、跨设备及意外中�
 
 ## 路径
 
-- `HANDOFF_ROOT`：本文件所在目录；
-- `SKILL_ROOT`：`HANDOFF_ROOT/../..`，只读；
+- `HANDOFF_ROOT`：本文件实际所在目录；
+- `SKILL_ROOT`：由 `HANDOFF_ROOT/../..` 动态解析得到的当前 `math-modeling` Skill 根目录，只读；
 - `PROJECT_ROOT`：用户比赛项目目录，可写。
+
+不得根据操作系统、用户名、Home 目录、Windows 盘符或推荐安装位置硬编码 `SKILL_ROOT`。
+
+不同设备可以把同一 Skill 安装在不同绝对路径；handoff 使用当前实际加载的 `SKILL_ROOT`，跨设备版本一致性由 upstream `VERSION` 与 Skill Git commit 判定。
 
 `SKILL_ROOT` 与 `PROJECT_ROOT` 必须是两个独立 Git 仓库。
 

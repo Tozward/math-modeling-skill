@@ -24,12 +24,6 @@ Working Tree：
 ACTIVE_WORK：
 未检查
 
-Skill 版本：
-未检查
-
-Skill Commit：
-未检查
-
 ## 本次工作时段已完成
 
 暂无。

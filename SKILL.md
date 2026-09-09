@@ -19,7 +19,7 @@ Copy-Item "<SKILL_ROOT>\使用指南.md" "<PROJECT_ROOT>\使用指南.md"
 cp "<SKILL_ROOT>/使用指南.md" "<PROJECT_ROOT>/使用指南.md"
 ```
 
-> `<SKILL_ROOT>` 是本 Skill 的安装目录（含 `SKILL.md` 的目录），`<PROJECT_ROOT>` 是你的题目/项目目录。
+> `<SKILL_ROOT>` 是本次实际加载的 `math-modeling` Skill 根目录（即本文件所在目录），`<PROJECT_ROOT>` 是你的题目/项目目录。不得根据操作系统、用户名、Home 目录、盘符或推荐安装位置猜测 `SKILL_ROOT`。
 
 ## 强制执行协议
 
@@ -49,7 +49,7 @@ cp "<SKILL_ROOT>/使用指南.md" "<PROJECT_ROOT>/使用指南.md"
 
 ## 根目录契约
 
-- `SKILL_ROOT`：本文件所在目录，只读。角色说明、算法资料、脚本和模板都从这里读取。
+- `SKILL_ROOT`：本次实际加载的根 `SKILL.md` 所在目录，只读。角色说明、算法资料、脚本和模板都从这里读取；不得假设固定绝对安装路径。
 - `PROJECT_ROOT`：用户题目和项目所在目录，所有新产物只能写入这里。
 - 两个根目录必须不同；默认禁止覆盖 `SKILL_ROOT` 内任何文件。
 - 输入附件只读。确需修改模板时，先复制到 `PROJECT_ROOT` 再处理。

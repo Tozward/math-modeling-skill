@@ -38,6 +38,8 @@ def run(
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
 
     if check and result.returncode != 0:
@@ -1258,6 +1260,231 @@ class HandoffCLITest(unittest.TestCase):
         )
 
 
+
+    def test_skill_lock_does_not_store_install_location(self) -> None:
+        self._init_project()
+
+        lock_path = (
+            self.project
+            / ".handoff"
+            / "SKILL.lock"
+        )
+
+        lock = json.loads(
+            lock_path.read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertNotIn(
+            "skill_path_template",
+            lock,
+        )
+
+        serialized = json.dumps(
+            lock,
+            ensure_ascii=False,
+        )
+
+        self.assertNotIn(
+            str(self.skill),
+            serialized,
+        )
+
+
+    def test_unknown_lock_metadata_does_not_change_identity(self) -> None:
+        self._init_project()
+
+        lock_path = (
+            self.project
+            / ".handoff"
+            / "SKILL.lock"
+        )
+
+        lock = json.loads(
+            lock_path.read_text(
+                encoding="utf-8"
+            )
+        )
+
+        lock["extra_metadata"] = {
+            "note": "ignored by identity check",
+        }
+
+        lock_path.write_text(
+            json.dumps(
+                lock,
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        self._commit_all(
+            self.project,
+            "add unrelated lock metadata",
+        )
+
+        result = self._handoff(
+            "check",
+            "--skill-root",
+            str(self.skill),
+            "--project-root",
+            str(self.project),
+            "--strict",
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+        )
+
+        self.assertIn(
+            "SKILL.lock 与本机 Skill 完全一致",
+            result.stdout,
+        )
+
+
+    def test_relocated_skill_with_same_commit_is_accepted(self) -> None:
+        self._init_project()
+
+        relocated = (
+            self.base
+            / "另一个 Skill 位置"
+            / "math-modeling-skill"
+        )
+
+        relocated.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        run(
+            "git",
+            "clone",
+            "-q",
+            str(self.skill),
+            str(relocated),
+        )
+
+        result = self._handoff(
+            "check",
+            "--skill-root",
+            str(relocated),
+            "--project-root",
+            str(self.project),
+            "--strict",
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+        )
+
+        self.assertIn(
+            "SKILL.lock 与本机 Skill 完全一致",
+            result.stdout,
+        )
+
+
+    def test_unicode_and_space_paths_are_supported(self) -> None:
+        project = (
+            self.base
+            / "比赛项目 胡耀宇"
+        )
+
+        self._init_git(
+            project
+        )
+
+        initialized = self._handoff(
+            "init",
+            "--skill-root",
+            str(self.skill),
+            "--project-root",
+            str(project),
+            "--contest",
+            "cumcm",
+            "--year",
+            "2026",
+        )
+
+        self.assertEqual(
+            initialized.returncode,
+            0,
+        )
+
+        self._commit_all(
+            project,
+            "initialize unicode project",
+        )
+
+        self._handoff(
+            "begin-work",
+            "--project-root",
+            str(project),
+            "--stage",
+            "M1",
+            "--objective",
+            "验证中文路径",
+            "--atomic-unit",
+            "记录中文文件",
+            "--next-action",
+            "继续中文路径恢复测试",
+        )
+
+        record = (
+            project
+            / "阶段 记录.md"
+        )
+
+        record.write_text(
+            "中文路径测试\n",
+            encoding="utf-8",
+        )
+
+        checkpoint = self._handoff(
+            "checkpoint",
+            "--project-root",
+            str(project),
+            "--next-action",
+            "从中文文件继续",
+            "--touch",
+            "阶段 记录.md",
+        )
+
+        self.assertEqual(
+            checkpoint.returncode,
+            0,
+        )
+
+        checked = self._handoff(
+            "check",
+            "--skill-root",
+            str(self.skill),
+            "--project-root",
+            str(project),
+            "--strict",
+        )
+
+        self.assertEqual(
+            checked.returncode,
+            0,
+        )
+
+        self.assertIn(
+            "[RECOVER]",
+            checked.stdout,
+        )
+
+        self.assertIn(
+            "从中文文件继续",
+            checked.stdout,
+        )
+
+
+
 class PreemptionProtocolDocumentationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -1296,6 +1523,27 @@ class PreemptionProtocolDocumentationTest(unittest.TestCase):
             REPO_ROOT
             / "references"
             / "跨账号接力协议.md"
+        ).read_text(encoding="utf-8")
+
+        cls.root_skill = (
+            REPO_ROOT
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        cls.handoff_source = (
+            REPO_ROOT
+            / "tools"
+            / "handoff"
+            / "scripts"
+            / "handoff.py"
+        ).read_text(encoding="utf-8")
+
+        cls.handoff_template = (
+            REPO_ROOT
+            / "tools"
+            / "handoff"
+            / "templates"
+            / "HANDOFF.md"
         ).read_text(encoding="utf-8")
 
     def test_expensive_work_requires_write_ahead_record(self) -> None:
@@ -1389,6 +1637,50 @@ class PreemptionProtocolDocumentationTest(unittest.TestCase):
 
         self.assertIn(
             "直接恢复该原子工作",
+            self.handoff_template,
+        )
+
+
+
+
+    def test_runtime_does_not_require_fixed_skill_location(self) -> None:
+        runtime_documents = (
+            self.root_skill,
+            self.skill,
+            self.agents,
+            self.protocol,
+        )
+
+        forbidden = (
+            "$HOME/MathModelingWorkspace/"
+            "skills/math-modeling-skill"
+        )
+
+        for document in runtime_documents:
+            self.assertNotIn(
+                forbidden,
+                document,
+            )
+
+        self.assertNotIn(
+            "skill_path_template",
+            self.handoff_source,
+        )
+
+        self.assertIn(
+            "<SKILL_ROOT>/SKILL.md",
+            self.agents,
+        )
+
+
+    def test_handoff_template_avoids_duplicate_skill_identity(self) -> None:
+        self.assertNotIn(
+            "Skill 版本：",
+            self.handoff_template,
+        )
+
+        self.assertNotIn(
+            "Skill Commit：",
             self.handoff_template,
         )
 
