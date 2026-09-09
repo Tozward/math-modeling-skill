@@ -1485,6 +1485,57 @@ class HandoffCLITest(unittest.TestCase):
 
 
 
+
+    def test_init_pins_project_autocrlf_false(self) -> None:
+        self._init_project()
+
+        result = git(
+            self.project,
+            "config",
+            "--local",
+            "--get",
+            "core.autocrlf",
+        )
+
+        self.assertEqual(
+            result.stdout.strip(),
+            "false",
+        )
+
+
+    def test_check_rejects_autocrlf_true(self) -> None:
+        self._init_project()
+
+        git(
+            self.project,
+            "config",
+            "--local",
+            "core.autocrlf",
+            "true",
+        )
+
+        result = self._handoff(
+            "check",
+            "--skill-root",
+            str(self.skill),
+            "--project-root",
+            str(self.project),
+            "--strict",
+            check=False,
+        )
+
+        self.assertNotEqual(
+            result.returncode,
+            0,
+        )
+
+        self.assertIn(
+            "core.autocrlf=true",
+            result.stdout,
+        )
+
+
+
 class PreemptionProtocolDocumentationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

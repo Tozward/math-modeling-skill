@@ -182,6 +182,43 @@ def git_is_ancestor(
     return result.returncode == 0
 
 
+def git_config_value(
+    root: Path,
+    key: str,
+) -> str | None:
+    result = run_git(
+        root,
+        "config",
+        "--get",
+        key,
+        check=False,
+    )
+
+    if result.returncode == 1:
+        return None
+
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise HandoffError(
+            f"无法读取 Git 配置 {key}：{detail}"
+        )
+
+    value = result.stdout.strip()
+    return value or None
+
+
+def pin_project_git_settings(
+    project_root: Path,
+) -> None:
+    run_git(
+        project_root,
+        "config",
+        "--local",
+        "core.autocrlf",
+        "false",
+    )
+
+
 def load_json(path: Path) -> dict[str, Any]:
     try:
         with path.open(
@@ -788,6 +825,10 @@ def cmd_init(
             initial_active_work_state(),
         )
 
+        pin_project_git_settings(
+            project_root
+        )
+
     except Exception:
         for path in reversed(copied):
             try:
@@ -820,6 +861,10 @@ def cmd_init(
 
     print(
         f"Project Git HEAD: {project_head}"
+    )
+
+    print(
+        "Project Git: core.autocrlf=false"
     )
 
     print(
@@ -1145,6 +1190,27 @@ def cmd_check(
             "PASS",
             f"项目 Git 仓库：HEAD {project_head}",
         )
+
+        autocrlf = git_config_value(
+            project_root,
+            "core.autocrlf",
+        )
+
+        if (
+            autocrlf is not None
+            and autocrlf.casefold() == "true"
+        ):
+            hard_errors.append(
+                "PROJECT_ROOT 的 Git 配置 "
+                "core.autocrlf=true，可能在跨平台接力时"
+                "自动改写换行符并导致 SHA-256 漂移。"
+                "请执行：git config core.autocrlf false"
+            )
+        else:
+            print_check_line(
+                "PASS",
+                "项目 Git 换行策略不会自动转换为 CRLF",
+            )
 
     except HandoffError as exc:
         print_check_line(
