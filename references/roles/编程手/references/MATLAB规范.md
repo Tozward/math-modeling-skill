@@ -16,6 +16,32 @@ MATLAB 与 Python 是同等支持的实现语言，不把 MATLAB 作为仅供参
 
 不要默认要求所有工具箱，也不要因缺少某个未使用工具箱而阻断任务。
 
+## Agent 与 CLI 调用
+
+自动化、复现和门禁默认从 shell 直接调用：
+
+`matlab -batch '<MATLAB expression>'`
+
+不默认启动 MATLAB GUI。
+
+Python MATLAB Engine 仅在模型确实需要 Python/MATLAB 进程内互操作时使用，不替代最终的独立 `matlab -batch` 复现入口。
+
+在 macOS Codex 环境中，如果同一 `matlab -batch` 命令在普通 Terminal 正常，但仅在 Codex 默认 sandbox 中因 Qt/CPU feature/NEON 检测失败，则将其判定为执行沙箱问题，不得因此重装 MATLAB、修改模型、静默切换语言或降低验证要求。应按当前用户已批准的本地执行策略让 `matlab` 命令在允许的沙箱外环境运行。
+
+为便于窄权限规则匹配，MATLAB 主运行命令优先保持直接形式：
+
+`matlab -batch '...'`
+
+无必要时不要再外包一层 `bash -lc`，不要在同一 shell 命令前附加环境变量赋值或复杂控制流。
+
+
+
+## 项目入口与根目录
+
+推荐唯一入口 `main.m` 直接位于 `PROJECT_ROOT`，辅助函数可放在 `src/`。下面模板中的 `projectRoot = fileparts(mfilename("fullpath"))` 以此布局为前提。
+
+若入口文件位于 `PROJECT_ROOT/src/` 等子目录，必须显式确定真正的 `PROJECT_ROOT`，不得把入口文件所在目录误当作项目根。
+
 ## 代码结构
 
 ```matlab

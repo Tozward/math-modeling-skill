@@ -37,10 +37,11 @@ jobs:
           python --version
           git --version
 
-      - name: Compile handoff
+      - name: Compile handoff and runtime hardening tests
         run: |
           python -m py_compile tools/handoff/scripts/handoff.py
           python -m py_compile tests/test_handoff.py
+          python -m py_compile tests/test_runtime_hardening.py
 
-      - name: Run handoff tests
-        run: python -m unittest tests.test_handoff -v
+      - name: Run handoff and runtime hardening tests
+        run: python -m unittest tests.test_handoff tests.test_runtime_hardening -v
